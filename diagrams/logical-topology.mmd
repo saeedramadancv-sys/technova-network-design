@@ -1,0 +1,73 @@
+%% TechNova Solutions - logical topology with addressing
+%% Render at https://mermaid.live or in any Markdown viewer that supports mermaid
+graph TB
+    INET["Internet<br/>198.51.100.0/24<br/>test host .10"]
+    ISP["ISP-R<br/>203.0.113.1/29"]
+    R1["<b>HQ-R1</b><br/>Border / NAT / ABR<br/>Gi0/0 203.0.113.2<br/>Lo0 172.16.255.241"]
+
+    INET --- ISP
+    ISP ---|"203.0.113.0/29"| R1
+
+    subgraph HQ["HQ - Amman &nbsp;&nbsp;172.16.0.0/20"]
+        CORE["<b>HQ-CORE</b> 3560<br/>L3 SVIs + STP root<br/>Lo0 172.16.255.244"]
+        A1["HQ-ACC1 2960"]
+        A2["HQ-ACC2 2960"]
+        V30["VLAN 30 ENGINEERING<br/>172.16.0.0/25<br/>gw .1"]
+        V20["VLAN 20 SALES<br/>172.16.0.128/26<br/>gw .129"]
+        V10["VLAN 10 ADMIN<br/>172.16.1.0/27<br/>gw .1"]
+        V60["VLAN 60 VOICE<br/>172.16.2.0/26<br/>gw .1"]
+        V40["VLAN 40 GUEST<br/>172.16.0.192/26<br/>gw .193"]
+        V50["VLAN 50 IT-SERVERS<br/>172.16.1.32/28<br/>.34 DNS .35 WEB .36 LOG"]
+        V99["VLAN 99 MGMT<br/>172.16.1.48/28<br/>gw .49"]
+
+        CORE ===|"Po1 LACP<br/>10,20,30,60,99"| A1
+        CORE ===|"Po2 LACP<br/>40,50,99"| A2
+        A1 --- V30
+        A1 --- V20
+        A1 --- V10
+        A1 --- V60
+        A2 --- V40
+        A2 --- V50
+        A2 --- V99
+    end
+
+    R1 ---|"172.16.255.12/30"| CORE
+
+    subgraph BR1["BR1 - Irbid &nbsp;&nbsp;172.16.16.0/22"]
+        B1R["BR1-R1<br/>router-on-a-stick<br/>local DHCP<br/>Lo0 172.16.255.242"]
+        B1S["BR1-SW1 2960"]
+        V110["VLAN 110 STAFF<br/>172.16.16.0/27<br/>gw .1"]
+        V140["VLAN 140 GUEST<br/>172.16.16.32/28<br/>gw .33"]
+        V199["VLAN 199 MGMT<br/>172.16.16.48/29<br/>gw .49"]
+        B1R ---|"802.1Q trunk"| B1S
+        B1S --- V110
+        B1S --- V140
+        B1S --- V199
+    end
+
+    subgraph BR2["BR2 - Aqaba &nbsp;&nbsp;172.16.20.0/22"]
+        B2R["BR2-R1<br/>router-on-a-stick<br/>local DHCP<br/>Lo0 172.16.255.243"]
+        B2S["BR2-SW1 2960"]
+        V210["VLAN 210 STAFF<br/>172.16.20.0/28<br/>gw .1"]
+        V240["VLAN 240 GUEST<br/>172.16.20.16/29<br/>gw .17"]
+        V299["VLAN 299 MGMT<br/>172.16.20.24/29<br/>gw .25"]
+        B2R ---|"802.1Q trunk"| B2S
+        B2S --- V210
+        B2S --- V240
+        B2S --- V299
+    end
+
+    R1 -.->|"Serial 2 Mbps<br/>172.16.255.0/30"| B1R
+    R1 -.->|"Serial 2 Mbps<br/>172.16.255.4/30"| B2R
+
+    classDef wan fill:#e8eef7,stroke:#41618f,stroke-width:2px
+    classDef l3 fill:#e9f3ea,stroke:#3f7a48,stroke-width:2px
+    classDef l2 fill:#fbf3e2,stroke:#9a7b34,stroke-width:1.5px
+    classDef vlan fill:#f6f6f8,stroke:#8a8a94,stroke-width:1px
+    classDef guest fill:#fdeaea,stroke:#a34b4b,stroke-width:1.5px
+
+    class INET,ISP wan
+    class R1,CORE,B1R,B2R l3
+    class A1,A2,B1S,B2S l2
+    class V10,V20,V30,V50,V60,V99,V110,V199,V210,V299 vlan
+    class V40,V140,V240 guest

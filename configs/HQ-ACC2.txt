@@ -1,0 +1,241 @@
+! =====================================================================
+!  DEVICE : HQ-ACC2           MODEL : Cisco 2960-24TT
+!  SITE   : Headquarters, Amman
+!  ROLE   : Access layer - Guest Wi-Fi (VLAN 40) and IT/servers (VLAN 50)
+!  UPLINK : Fa0/1-2 -> Po2 (LACP) -> HQ-CORE Fa0/3-4
+! =====================================================================
+enable
+configure terminal
+!
+! ---------------------------------------------------------------------
+!  1. IDENTITY AND BASELINE
+! ---------------------------------------------------------------------
+hostname HQ-ACC2
+no ip domain-lookup
+ip domain-name technova.local
+!
+enable secret NetW0rks#2026
+service password-encryption
+username netadmin privilege 15 secret Adm1n#Tech2026
+!
+service timestamps log datetime msec localtime
+clock timezone AST 3
+login block-for 120 attempts 4 within 60
+!
+banner motd #
+ *** TechNova Solutions - HQ ACCESS SWITCH 2 - authorised use only ***
+#
+!
+! ---------------------------------------------------------------------
+!  2. MANAGEMENT ACCESS
+! ---------------------------------------------------------------------
+crypto key generate rsa general-keys modulus 1024
+ip ssh version 2
+!
+ip access-list standard MGMT-ACCESS
+ permit 172.16.1.48 0.0.0.15
+ deny   any log
+exit
+!
+line console 0
+ login local
+ exec-timeout 15 0
+ logging synchronous
+exit
+!
+line vty 0 15
+ access-class MGMT-ACCESS in
+ transport input ssh
+ login local
+ exec-timeout 10 0
+ logging synchronous
+exit
+!
+! ---------------------------------------------------------------------
+!  3. VLANS
+! ---------------------------------------------------------------------
+vlan 40
+ name GUEST
+exit
+vlan 50
+ name IT-SERVERS
+exit
+vlan 99
+ name MGMT
+exit
+vlan 999
+ name PARKING-NATIVE
+exit
+!
+spanning-tree mode rapid-pvst
+!
+! ---------------------------------------------------------------------
+!  4. UPLINK ETHERCHANNEL Po2 -> HQ-CORE
+! ---------------------------------------------------------------------
+interface range FastEthernet0/1-2
+ description ### MEMBER OF Po2 -> HQ-CORE ###
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 40,50,99
+ switchport nonegotiate
+ channel-group 2 mode active
+ no shutdown
+exit
+!
+interface Port-channel2
+ description ### LACP BUNDLE TO HQ-CORE ###
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 40,50,99
+ switchport nonegotiate
+ ip dhcp snooping trust
+exit
+!
+! ---------------------------------------------------------------------
+!  5. GUEST WI-FI ACCESS POINTS (VLAN 40)
+!     switchport protected stops one guest port talking directly to
+!     another guest port on this switch at layer 2.
+! ---------------------------------------------------------------------
+interface range FastEthernet0/5-8
+ description ### GUEST WIRELESS ACCESS POINTS ###
+ switchport mode access
+ switchport access vlan 40
+ switchport protected
+ switchport port-security
+ switchport port-security maximum 8
+ switchport port-security violation restrict
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  6. SERVER PORTS (VLAN 50)
+!     Servers are statically addressed. Violation mode is "shutdown"
+!     here, not "restrict": an unexpected MAC on a server port is a
+!     serious event and there is no legitimate reason for one.
+! ---------------------------------------------------------------------
+interface FastEthernet0/20
+ description ### SERVER - DNS / 172.16.1.34 ###
+ switchport mode access
+ switchport access vlan 50
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security mac-address sticky
+ switchport port-security violation shutdown
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+exit
+!
+interface FastEthernet0/21
+ description ### SERVER - WEB / APP / 172.16.1.35 (static NAT 203.0.113.3) ###
+ switchport mode access
+ switchport access vlan 50
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security mac-address sticky
+ switchport port-security violation shutdown
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+exit
+!
+interface FastEthernet0/22
+ description ### SERVER - SYSLOG / NTP / TFTP / 172.16.1.36 ###
+ switchport mode access
+ switchport access vlan 50
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security mac-address sticky
+ switchport port-security violation shutdown
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  7. IT ADMIN WORKSTATION - management VLAN 99
+!     This is the only host port in VLAN 99, and therefore the only
+!     place from which the network devices can be managed over SSH.
+! ---------------------------------------------------------------------
+interface FastEthernet0/24
+ description ### IT ADMIN WORKSTATION - MGMT VLAN ###
+ switchport mode access
+ switchport access vlan 99
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security mac-address sticky
+ switchport port-security violation shutdown
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  8. UNUSED PORTS
+! ---------------------------------------------------------------------
+interface range FastEthernet0/3-4
+ description ### UNUSED ###
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+exit
+!
+interface range FastEthernet0/9-19
+ description ### UNUSED ###
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+exit
+!
+interface FastEthernet0/23
+ description ### UNUSED ###
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+exit
+!
+interface range GigabitEthernet0/1-2
+ description ### UNUSED UPLINK PORTS ###
+ shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  9. DHCP SNOOPING
+! ---------------------------------------------------------------------
+ip dhcp snooping
+ip dhcp snooping vlan 40,50,99
+no ip dhcp snooping information option
+!
+! ---------------------------------------------------------------------
+! 10. MANAGEMENT INTERFACE
+! ---------------------------------------------------------------------
+interface Vlan99
+ description ### SWITCH MANAGEMENT ADDRESS ###
+ ip address 172.16.1.51 255.255.255.240
+ no shutdown
+exit
+!
+ip default-gateway 172.16.1.49
+!
+! ---------------------------------------------------------------------
+! 11. TIME AND LOGGING
+! ---------------------------------------------------------------------
+ntp server 172.16.255.241
+logging buffered 16384
+logging host 172.16.1.36
+logging trap informational
+!
+end
+write memory
+!
+! =====================================================================
+!  VERIFICATION ON THIS DEVICE
+!    show vlan brief
+!    show interfaces trunk
+!    show etherchannel summary        -> Po2 (SU), members P
+!    show port-security interface Fa0/20
+!    show interfaces status           -> unused ports "disabled"
+!    show ip dhcp snooping
+! =====================================================================

@@ -1,0 +1,172 @@
+! =====================================================================
+!  DEVICE : BR2-R1            MODEL : Cisco 2911 + HWIC-2T (slot 0)
+!  SITE   : Branch 2 - Aqaba
+!  ROLES  : Inter-VLAN routing by 802.1Q subinterfaces (router-on-a-stick)
+!           LOCAL DHCP server (survives a WAN outage - requirement BR-5)
+!           OSPF area 2 internal router
+!  WAN    : Se0/0/0 -> HQ-R1 Se0/0/1 (DTE end, clocking comes from HQ)
+! =====================================================================
+enable
+configure terminal
+!
+! ---------------------------------------------------------------------
+!  1. IDENTITY AND BASELINE
+! ---------------------------------------------------------------------
+hostname BR2-R1
+no ip domain-lookup
+ip domain-name technova.local
+!
+enable secret NetW0rks#2026
+service password-encryption
+username netadmin privilege 15 secret Adm1n#Tech2026
+!
+service timestamps log datetime msec localtime
+clock timezone AST 3
+login block-for 120 attempts 4 within 60
+!
+banner motd #
+ *** TechNova Solutions - BRANCH 2 (Aqaba) ROUTER - authorised use only ***
+#
+!
+! ---------------------------------------------------------------------
+!  2. MANAGEMENT ACCESS
+! ---------------------------------------------------------------------
+crypto key generate rsa general-keys modulus 1024
+ip ssh version 2
+!
+ip access-list standard MGMT-ACCESS
+ permit 172.16.1.48 0.0.0.15
+ deny   any log
+exit
+!
+line console 0
+ login local
+ exec-timeout 15 0
+ logging synchronous
+exit
+!
+line vty 0 4
+ access-class MGMT-ACCESS in
+ transport input ssh
+ login local
+ exec-timeout 10 0
+ logging synchronous
+exit
+!
+! ---------------------------------------------------------------------
+!  3. INTERFACES
+! ---------------------------------------------------------------------
+interface Loopback0
+ description ### OSPF ROUTER-ID SOURCE / STABLE MGMT ADDRESS ###
+ ip address 172.16.255.243 255.255.255.255
+exit
+!
+interface Serial0/0/0
+ description ### WAN TO HQ-R1 Se0/0/1 - DTE end ###
+ ip address 172.16.255.6 255.255.255.252
+ bandwidth 2000
+ ip ospf message-digest-key 1 md5 0sPf#Tech26
+ no shutdown
+exit
+!
+interface GigabitEthernet0/0
+ description ### 802.1Q TRUNK TO BR2-SW1 Fa0/1 ###
+ no ip address
+ no shutdown
+exit
+!
+interface GigabitEthernet0/0.210
+ description ### BR2 STAFF GATEWAY - VLAN 210 ###
+ encapsulation dot1Q 210
+ ip address 172.16.20.1 255.255.255.240
+exit
+!
+interface GigabitEthernet0/0.240
+ description ### BR2 GUEST GATEWAY - VLAN 240 (isolated by ACL) ###
+ encapsulation dot1Q 240
+ ip address 172.16.20.17 255.255.255.248
+ ip access-group BR2-GUEST-IN in
+exit
+!
+interface GigabitEthernet0/0.299
+ description ### BR2 MANAGEMENT GATEWAY - VLAN 299 ###
+ encapsulation dot1Q 299
+ ip address 172.16.20.25 255.255.255.248
+exit
+!
+interface GigabitEthernet0/1
+ description ### SPARE ###
+ shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  4. GUEST ISOLATION ACL
+! ---------------------------------------------------------------------
+ip access-list extended BR2-GUEST-IN
+ permit udp any any eq 67
+ permit udp any any eq 68
+ permit udp any host 172.16.1.34 eq 53
+ permit tcp any host 172.16.1.34 eq 53
+ deny   ip any 172.16.0.0 0.0.255.255
+ permit ip any any
+exit
+!
+! ---------------------------------------------------------------------
+!  5. ROUTING - OSPF area 2
+! ---------------------------------------------------------------------
+router ospf 10
+ router-id 4.4.4.4
+ auto-cost reference-bandwidth 10000
+ passive-interface default
+ no passive-interface Serial0/0/0
+ !
+ network 172.16.255.243 0.0.0.0 area 2
+ network 172.16.255.4  0.0.0.3  area 2
+ network 172.16.20.0   0.0.0.15 area 2
+ network 172.16.20.16  0.0.0.7  area 2
+ network 172.16.20.24  0.0.0.7  area 2
+ !
+ area 2 authentication message-digest
+exit
+!
+! ---------------------------------------------------------------------
+!  6. LOCAL DHCP
+! ---------------------------------------------------------------------
+ip dhcp excluded-address 172.16.20.1 172.16.20.4
+ip dhcp excluded-address 172.16.20.17 172.16.20.18
+!
+ip dhcp pool BR2-STAFF-V210
+ network 172.16.20.0 255.255.255.240
+ default-router 172.16.20.1
+ dns-server 172.16.1.34
+ domain-name technova.local
+ lease 7 0 0
+exit
+!
+ip dhcp pool BR2-GUEST-V240
+ network 172.16.20.16 255.255.255.248
+ default-router 172.16.20.17
+ dns-server 172.16.1.34
+ lease 0 4 0
+exit
+!
+! ---------------------------------------------------------------------
+!  7. TIME AND LOGGING
+! ---------------------------------------------------------------------
+ntp server 172.16.255.241
+logging buffered 16384
+logging host 172.16.1.36
+logging source-interface Loopback0
+logging trap informational
+!
+end
+write memory
+!
+! =====================================================================
+!  VERIFICATION ON THIS DEVICE
+!    show ip interface brief
+!    show ip ospf neighbor            -> expect 1.1.1.1 over Se0/0/0
+!    show ip route                    -> O*E2 default + O IA for HQ and BR1
+!    show ip dhcp binding
+!    show ip access-lists BR2-GUEST-IN
+! =====================================================================

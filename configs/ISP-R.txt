@@ -1,0 +1,63 @@
+! =====================================================================
+!  DEVICE : ISP-R            MODEL : Cisco 2911
+!  ROLE   : Simulated service provider / Internet edge
+!  NOTE   : Not part of the TechNova estate. It exists only so that the
+!           lab can demonstrate NAT, the default route and inbound access
+!           to the public web server.
+! =====================================================================
+enable
+configure terminal
+!
+hostname ISP-R
+no ip domain-lookup
+enable secret ISP@Lab2026
+service password-encryption
+!
+banner motd #
+  Simulated ISP router - lab use only
+#
+! ---------------------------------------------------------------------
+!  LINK TOWARD THE CUSTOMER (TechNova HQ)
+! ---------------------------------------------------------------------
+interface GigabitEthernet0/0
+ description ### TO HQ-R1 Gi0/0 - customer handoff 203.0.113.0/29 ###
+ ip address 203.0.113.1 255.255.255.248
+ no shutdown
+!
+! ---------------------------------------------------------------------
+!  SIMULATED INTERNET SEGMENT (external test server lives here)
+! ---------------------------------------------------------------------
+interface GigabitEthernet0/1
+ description ### SIMULATED INTERNET LAN - external server 198.51.100.10 ###
+ ip address 198.51.100.1 255.255.255.0
+ no shutdown
+!
+interface Loopback0
+ description ### EXTRA PING TARGET FOR INTERNET REACHABILITY TESTS ###
+ ! 192.0.2.53 - RFC 5737 TEST-NET-1. A real address such as 8.8.8.8 would
+ ! work in the lab, but this design says elsewhere that squatting on space
+ ! owned by another organisation is wrong, so it does not do it here either.
+ !
+ ! TEST-NET-1 rather than the 198.51.100.0/24 used on Gi0/1 above: a loopback
+ ! inside a subnet already connected on another interface of the same router
+ ! is rejected by IOS as an overlap. The three RFC 5737 ranges are used one
+ ! per purpose - .113 for the customer block, .100 for the Internet LAN,
+ ! and 192.0.2.0/24 here.
+ ip address 192.0.2.53 255.255.255.255
+!
+! ---------------------------------------------------------------------
+!  ROUTING
+!  The customer block 203.0.113.0/29 is directly connected, so no route
+!  back to it is needed. There is deliberately NO route to 172.16.0.0/16
+!  here - that is the whole point of NAT: the provider must not need to
+!  know anything about the customer's private addressing.
+! ---------------------------------------------------------------------
+!
+line console 0
+ password C0nsole@ISP
+ login
+ logging synchronous
+ exec-timeout 15 0
+!
+end
+write memory

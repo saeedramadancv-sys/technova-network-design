@@ -1,0 +1,216 @@
+! =====================================================================
+!  DEVICE : HQ-ACC1           MODEL : Cisco 2960-24TT
+!  SITE   : Headquarters, Amman
+!  ROLE   : Access layer - Engineering, Sales, Administration + voice
+!  UPLINK : Fa0/1-2 -> Po1 (LACP) -> HQ-CORE Fa0/1-2
+!  NOTE   : A 2960 is dot1q-only, so "switchport trunk encapsulation"
+!           is not configured here (it exists only on the 3560).
+! =====================================================================
+enable
+configure terminal
+!
+! ---------------------------------------------------------------------
+!  1. IDENTITY AND BASELINE
+! ---------------------------------------------------------------------
+hostname HQ-ACC1
+no ip domain-lookup
+ip domain-name technova.local
+!
+enable secret NetW0rks#2026
+service password-encryption
+username netadmin privilege 15 secret Adm1n#Tech2026
+!
+service timestamps log datetime msec localtime
+clock timezone AST 3
+login block-for 120 attempts 4 within 60
+!
+banner motd #
+ *** TechNova Solutions - HQ ACCESS SWITCH 1 - authorised use only ***
+#
+!
+! ---------------------------------------------------------------------
+!  2. MANAGEMENT ACCESS (SSH only, management VLAN only)
+! ---------------------------------------------------------------------
+crypto key generate rsa general-keys modulus 1024
+ip ssh version 2
+!
+ip access-list standard MGMT-ACCESS
+ permit 172.16.1.48 0.0.0.15
+ deny   any log
+exit
+!
+line console 0
+ login local
+ exec-timeout 15 0
+ logging synchronous
+exit
+!
+line vty 0 15
+ access-class MGMT-ACCESS in
+ transport input ssh
+ login local
+ exec-timeout 10 0
+ logging synchronous
+exit
+!
+! ---------------------------------------------------------------------
+!  3. VLANS
+! ---------------------------------------------------------------------
+vlan 10
+ name ADMIN
+exit
+vlan 20
+ name SALES
+exit
+vlan 30
+ name ENGINEERING
+exit
+vlan 60
+ name VOICE
+exit
+vlan 99
+ name MGMT
+exit
+vlan 999
+ name PARKING-NATIVE
+exit
+!
+! ---------------------------------------------------------------------
+!  4. SPANNING TREE
+! ---------------------------------------------------------------------
+spanning-tree mode rapid-pvst
+!
+! ---------------------------------------------------------------------
+!  5. UPLINK ETHERCHANNEL Po1 -> HQ-CORE
+! ---------------------------------------------------------------------
+interface range FastEthernet0/1-2
+ description ### MEMBER OF Po1 -> HQ-CORE ###
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 10,20,30,60,99
+ switchport nonegotiate
+ channel-group 1 mode active
+ no shutdown
+exit
+!
+interface Port-channel1
+ description ### LACP BUNDLE TO HQ-CORE ###
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 10,20,30,60,99
+ switchport nonegotiate
+ ip dhcp snooping trust
+exit
+!
+! ---------------------------------------------------------------------
+!  6. ACCESS PORTS - ENGINEERING (VLAN 30)   Template A
+! ---------------------------------------------------------------------
+interface range FastEthernet0/5-9
+ description ### ENGINEERING WORKSTATIONS ###
+ switchport mode access
+ switchport access vlan 30
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  7. ACCESS PORTS - SALES (VLAN 20)          Template A
+! ---------------------------------------------------------------------
+interface range FastEthernet0/10-14
+ description ### SALES WORKSTATIONS ###
+ switchport mode access
+ switchport access vlan 20
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  8. ACCESS PORTS - ADMIN + IP PHONE (VLAN 10 data / 60 voice)  Template B
+!     maximum 3 = phone + PC behind it + one replacement
+! ---------------------------------------------------------------------
+interface range FastEthernet0/15-19
+ description ### ADMIN DESKS - PHONE + PC ###
+ switchport mode access
+ switchport access vlan 10
+ switchport voice vlan 60
+ switchport port-security
+ switchport port-security maximum 3
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  9. UNUSED PORTS - parked in VLAN 999 and administratively down
+! ---------------------------------------------------------------------
+interface range FastEthernet0/3-4
+ description ### UNUSED ###
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+exit
+!
+interface range FastEthernet0/20-24
+ description ### UNUSED ###
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+exit
+!
+interface range GigabitEthernet0/1-2
+ description ### UNUSED UPLINK PORTS ###
+ shutdown
+exit
+!
+! ---------------------------------------------------------------------
+! 10. DHCP SNOOPING - only the uplink bundle is trusted
+! ---------------------------------------------------------------------
+ip dhcp snooping
+ip dhcp snooping vlan 10,20,30,60,99
+no ip dhcp snooping information option
+!
+! ---------------------------------------------------------------------
+! 11. MANAGEMENT INTERFACE
+! ---------------------------------------------------------------------
+interface Vlan99
+ description ### SWITCH MANAGEMENT ADDRESS ###
+ ip address 172.16.1.50 255.255.255.240
+ no shutdown
+exit
+!
+ip default-gateway 172.16.1.49
+!
+! ---------------------------------------------------------------------
+! 12. TIME AND LOGGING
+! ---------------------------------------------------------------------
+ntp server 172.16.255.241
+logging buffered 16384
+logging host 172.16.1.36
+logging trap informational
+!
+end
+write memory
+!
+! =====================================================================
+!  VERIFICATION ON THIS DEVICE
+!    show vlan brief
+!    show interfaces trunk
+!    show etherchannel summary        -> Po1 (SU), members P
+!    show port-security                -> per-port max / sticky / restrict
+!    show port-security address        -> learned sticky MACs
+!    show spanning-tree vlan 30        -> root is HQ-CORE, uplink = root port
+!    show ip dhcp snooping
+!    show ip interface brief | include Vlan99
+! =====================================================================

@@ -1,0 +1,33 @@
+%% OSPFv2 area design, router-IDs and summarisation at the ABR
+graph TB
+    subgraph A1G["Area 1 - Irbid"]
+        B1["BR1-R1<br/>RID 3.3.3.3<br/>172.16.16.0/27<br/>172.16.16.32/28<br/>172.16.16.48/29"]
+    end
+
+    subgraph A0G["Area 0 - Backbone (HQ)"]
+        R1["HQ-R1<br/>RID 1.1.1.1<br/><b>ABR + ASBR</b><br/>default-information originate"]
+        CORE["HQ-CORE<br/>RID 2.2.2.2<br/>all 7 HQ VLAN subnets"]
+        R1 ---|"172.16.255.12/30<br/>cost 10"| CORE
+    end
+
+    subgraph A2G["Area 2 - Aqaba"]
+        B2["BR2-R1<br/>RID 4.4.4.4<br/>172.16.20.0/28<br/>172.16.20.16/29<br/>172.16.20.24/29"]
+    end
+
+    B1 ---|"serial 2 Mbps - cost 5000"| R1
+    B2 ---|"serial 2 Mbps - cost 5000"| R1
+
+    SUM1["area 1 range<br/>172.16.16.0 255.255.252.0<br/>4 routes -> 1"]
+    SUM2["area 2 range<br/>172.16.20.0 255.255.252.0<br/>4 routes -> 1"]
+    EXT["ip route 0.0.0.0 0.0.0.0 203.0.113.1<br/>redistributed as O*E2"]
+
+    R1 -.-> SUM1
+    R1 -.-> SUM2
+    R1 -.-> EXT
+
+    classDef abr fill:#e9f3ea,stroke:#3f7a48,stroke-width:3px
+    classDef rtr fill:#e8eef7,stroke:#41618f,stroke-width:2px
+    classDef note fill:#fbf3e2,stroke:#9a7b34,stroke-dasharray:4 3
+    class R1 abr
+    class CORE,B1,B2 rtr
+    class SUM1,SUM2,EXT note

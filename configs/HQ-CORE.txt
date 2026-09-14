@@ -1,0 +1,307 @@
+! =====================================================================
+!  DEVICE : HQ-CORE          MODEL : Cisco 3560-24PS (multilayer switch)
+!  SITE   : Headquarters, Amman
+!  ROLES  : Collapsed core / distribution layer
+!           Inter-VLAN routing for all HQ VLANs (SVIs)
+!           Spanning-tree root bridge for all HQ VLANs
+!           LACP EtherChannel aggregation to both access switches
+!           DHCP relay (ip helper-address) towards HQ-R1
+!           Guest-isolation ACL enforcement point
+!           OSPF area 0 (internal, non-backbone-border)
+! =====================================================================
+enable
+configure terminal
+!
+! ---------------------------------------------------------------------
+!  1. IDENTITY AND BASELINE
+! ---------------------------------------------------------------------
+hostname HQ-CORE
+no ip domain-lookup
+ip domain-name technova.local
+!
+enable secret NetW0rks#2026
+service password-encryption
+username netadmin privilege 15 secret Adm1n#Tech2026
+!
+service timestamps log datetime msec localtime
+clock timezone AST 3
+login block-for 120 attempts 4 within 60
+!
+banner motd #
+ ***********************************************************
+ *  TechNova Solutions - HQ CORE SWITCH (HQ-CORE)          *
+ *  Authorised access only. All activity is logged.        *
+ ***********************************************************
+#
+!
+ip routing
+!
+! ---------------------------------------------------------------------
+!  2. MANAGEMENT ACCESS
+! ---------------------------------------------------------------------
+crypto key generate rsa general-keys modulus 1024
+ip ssh version 2
+!
+ip access-list standard MGMT-ACCESS
+ permit 172.16.1.48 0.0.0.15
+ deny   any log
+exit
+!
+line console 0
+ login local
+ exec-timeout 15 0
+ logging synchronous
+exit
+!
+line vty 0 15
+ access-class MGMT-ACCESS in
+ transport input ssh
+ login local
+ exec-timeout 10 0
+ logging synchronous
+exit
+!
+! ---------------------------------------------------------------------
+!  3. VLAN DATABASE
+! ---------------------------------------------------------------------
+vlan 10
+ name ADMIN
+exit
+vlan 20
+ name SALES
+exit
+vlan 30
+ name ENGINEERING
+exit
+vlan 40
+ name GUEST
+exit
+vlan 50
+ name IT-SERVERS
+exit
+vlan 60
+ name VOICE
+exit
+vlan 99
+ name MGMT
+exit
+vlan 999
+ name PARKING-NATIVE
+exit
+!
+! ---------------------------------------------------------------------
+!  4. SPANNING TREE - this switch is the root for every HQ VLAN
+! ---------------------------------------------------------------------
+spanning-tree mode rapid-pvst
+spanning-tree vlan 10,20,30,40,50,60,99 root primary
+!
+! ---------------------------------------------------------------------
+!  5. ETHERCHANNEL Po1 -> HQ-ACC1   (Fa0/1 - Fa0/2, LACP)
+!     Members are configured as a RANGE so both ends are identical;
+!     mismatched member settings are the usual reason LACP will not
+!     bundle.
+! ---------------------------------------------------------------------
+port-channel load-balance src-dst-ip
+!
+interface range FastEthernet0/1-2
+ description ### MEMBER OF Po1 -> HQ-ACC1 ###
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 10,20,30,60,99
+ switchport nonegotiate
+ channel-group 1 mode active
+ no shutdown
+exit
+!
+interface Port-channel1
+ description ### LACP BUNDLE TO HQ-ACC1 ###
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 10,20,30,60,99
+ switchport nonegotiate
+ ip dhcp snooping trust
+exit
+!
+! ---------------------------------------------------------------------
+!  6. ETHERCHANNEL Po2 -> HQ-ACC2   (Fa0/3 - Fa0/4, LACP)
+! ---------------------------------------------------------------------
+interface range FastEthernet0/3-4
+ description ### MEMBER OF Po2 -> HQ-ACC2 ###
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 40,50,99
+ switchport nonegotiate
+ channel-group 2 mode active
+ no shutdown
+exit
+!
+interface Port-channel2
+ description ### LACP BUNDLE TO HQ-ACC2 ###
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 40,50,99
+ switchport nonegotiate
+ ip dhcp snooping trust
+exit
+!
+! ---------------------------------------------------------------------
+!  7. UNUSED ACCESS PORTS - parked and shut
+! ---------------------------------------------------------------------
+interface range FastEthernet0/5-24
+ description ### UNUSED ###
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  8. ROUTED UPLINK TO HQ-R1
+! ---------------------------------------------------------------------
+interface GigabitEthernet0/1
+ description ### L3 LINK TO HQ-R1 Gi0/1 ###
+ no switchport
+ ip address 172.16.255.13 255.255.255.252
+ ip ospf message-digest-key 1 md5 0sPf#Tech26
+ no shutdown
+exit
+!
+interface GigabitEthernet0/2
+ description ### SPARE UPLINK ###
+ shutdown
+exit
+!
+interface Loopback0
+ description ### STABLE MGMT / OSPF ROUTER-ID SOURCE ###
+ ip address 172.16.255.244 255.255.255.255
+exit
+!
+! ---------------------------------------------------------------------
+!  9. SWITCHED VIRTUAL INTERFACES - the default gateway of every HQ VLAN
+!     ip helper-address relays DHCP to the pools on HQ-R1.
+! ---------------------------------------------------------------------
+interface Vlan10
+ description ### ADMIN GATEWAY ###
+ ip address 172.16.1.1 255.255.255.224
+ ip helper-address 172.16.255.14
+ no shutdown
+exit
+!
+interface Vlan20
+ description ### SALES GATEWAY ###
+ ip address 172.16.0.129 255.255.255.192
+ ip helper-address 172.16.255.14
+ no shutdown
+exit
+!
+interface Vlan30
+ description ### ENGINEERING GATEWAY ###
+ ip address 172.16.0.1 255.255.255.128
+ ip helper-address 172.16.255.14
+ no shutdown
+exit
+!
+interface Vlan40
+ description ### GUEST GATEWAY - isolated by ACL ###
+ ip address 172.16.0.193 255.255.255.192
+ ip helper-address 172.16.255.14
+ ip access-group GUEST-VLAN40-IN in
+ no shutdown
+exit
+!
+interface Vlan50
+ description ### IT / SERVER GATEWAY - static hosts only, no relay ###
+ ip address 172.16.1.33 255.255.255.240
+ no shutdown
+exit
+!
+interface Vlan60
+ description ### VOICE GATEWAY ###
+ ip address 172.16.2.1 255.255.255.192
+ ip helper-address 172.16.255.14
+ no shutdown
+exit
+!
+interface Vlan99
+ description ### DEVICE MANAGEMENT GATEWAY ###
+ ip address 172.16.1.49 255.255.255.240
+ no shutdown
+exit
+!
+! ---------------------------------------------------------------------
+! 10. GUEST ISOLATION ACL
+!     Order matters: DHCP and DNS are permitted before the blanket deny
+!     of all internal space, and the final permit sends everything else
+!     (i.e. Internet-bound traffic) on its way.
+! ---------------------------------------------------------------------
+ip access-list extended GUEST-VLAN40-IN
+ remark --- allow the client to obtain an address ---
+ permit udp any any eq 67
+ permit udp any any eq 68
+ remark --- allow name resolution against the internal DNS server ONLY ---
+ permit udp any host 172.16.1.34 eq 53
+ permit tcp any host 172.16.1.34 eq 53
+ remark --- block every other internal destination, all sites ---
+ deny   ip any 172.16.0.0 0.0.255.255
+ remark --- anything left is Internet-bound ---
+ permit ip any any
+exit
+!
+! ---------------------------------------------------------------------
+! 11. DHCP SNOOPING
+! ---------------------------------------------------------------------
+ip dhcp snooping
+ip dhcp snooping vlan 10,20,30,40,50,60,99
+no ip dhcp snooping information option
+!
+! ---------------------------------------------------------------------
+! 12. ROUTING - OSPF area 0
+!     passive-interface default keeps OSPF off every user VLAN; only the
+!     routed uplink to HQ-R1 forms an adjacency.
+! ---------------------------------------------------------------------
+router ospf 10
+ router-id 2.2.2.2
+ auto-cost reference-bandwidth 10000
+ passive-interface default
+ no passive-interface GigabitEthernet0/1
+ !
+ network 172.16.255.244 0.0.0.0 area 0
+ network 172.16.255.12 0.0.0.3  area 0
+ network 172.16.0.0   0.0.0.127 area 0
+ network 172.16.0.128 0.0.0.63  area 0
+ network 172.16.0.192 0.0.0.63  area 0
+ network 172.16.1.0   0.0.0.31  area 0
+ network 172.16.1.32  0.0.0.15  area 0
+ network 172.16.1.48  0.0.0.15  area 0
+ network 172.16.2.0   0.0.0.63  area 0
+ !
+ area 0 authentication message-digest
+exit
+!
+! ---------------------------------------------------------------------
+! 13. TIME AND LOGGING
+! ---------------------------------------------------------------------
+ntp server 172.16.255.241
+logging buffered 16384
+logging host 172.16.1.36
+logging trap informational
+!
+end
+write memory
+!
+! =====================================================================
+!  VERIFICATION ON THIS DEVICE
+!    show ip interface brief
+!    show vlan brief
+!    show interfaces trunk            -> native 999, pruned VLAN lists
+!    show etherchannel summary        -> Po1 and Po2 must show (SU) and P
+!    show spanning-tree summary       -> this switch is root for all VLANs
+!    show ip ospf neighbor            -> expect 1.1.1.1 on Gi0/1
+!    show ip route ospf               -> expect 172.16.16.0/22 and
+!                                        172.16.20.0/22 as O IA (summarised)
+!    show ip access-lists GUEST-VLAN40-IN
+!    show ip dhcp snooping
+! =====================================================================

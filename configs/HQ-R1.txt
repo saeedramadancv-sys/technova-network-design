@@ -1,0 +1,262 @@
+! =====================================================================
+!  DEVICE : HQ-R1            MODEL : Cisco 2911 + HWIC-2T (slot 0)
+!  SITE   : Headquarters, Amman
+!  ROLES  : Internet border router  - NAT/PAT + edge ACL
+!           WAN aggregation         - serial links to BR1 and BR2
+!           OSPF ABR (areas 1, 2) and ASBR (default route origination)
+!           Central DHCP server for all HQ VLANs
+!           NTP master for the whole network
+! =====================================================================
+enable
+configure terminal
+!
+! ---------------------------------------------------------------------
+!  1. IDENTITY, BASELINE HARDENING
+! ---------------------------------------------------------------------
+hostname HQ-R1
+no ip domain-lookup
+ip domain-name technova.local
+!
+enable secret NetW0rks#2026
+service password-encryption
+username netadmin privilege 15 secret Adm1n#Tech2026
+!
+service timestamps log datetime msec localtime
+service timestamps debug datetime msec localtime
+clock timezone AST 3
+!
+login block-for 120 attempts 4 within 60
+!
+banner motd #
+ ***********************************************************
+ *  TechNova Solutions - HQ BORDER ROUTER (HQ-R1)          *
+ *  Authorised access only. All activity is logged.        *
+ ***********************************************************
+#
+!
+! ---------------------------------------------------------------------
+!  2. MANAGEMENT ACCESS  (SSH only, from the management subnet only)
+! ---------------------------------------------------------------------
+crypto key generate rsa general-keys modulus 1024
+!
+ip ssh version 2
+ip ssh time-out 60
+ip ssh authentication-retries 3
+!
+ip access-list standard MGMT-ACCESS
+ remark --- only the HQ management VLAN 99 may manage this device ---
+ permit 172.16.1.48 0.0.0.15
+ deny   any log
+exit
+!
+line console 0
+ login local
+ exec-timeout 15 0
+ logging synchronous
+exit
+!
+line vty 0 4
+ access-class MGMT-ACCESS in
+ transport input ssh
+ login local
+ exec-timeout 10 0
+ logging synchronous
+exit
+!
+! ---------------------------------------------------------------------
+!  3. INTERFACES
+! ---------------------------------------------------------------------
+interface Loopback0
+ description ### OSPF ROUTER-ID SOURCE / STABLE MGMT ADDRESS ###
+ ip address 172.16.255.241 255.255.255.255
+exit
+!
+interface GigabitEthernet0/0
+ description ### WAN UPLINK TO ISP-R - public 203.0.113.2/29 ###
+ ip address 203.0.113.2 255.255.255.248
+ ip nat outside
+ ip access-group ISP-IN in
+ no shutdown
+exit
+!
+interface GigabitEthernet0/1
+ description ### L3 LINK TO HQ-CORE Gi0/1 ###
+ ip address 172.16.255.14 255.255.255.252
+ ip nat inside
+ ip ospf message-digest-key 1 md5 0sPf#Tech26
+ no shutdown
+exit
+!
+interface Serial0/0/0
+ description ### WAN TO BR1-R1 (Irbid) - DCE end ###
+ ip address 172.16.255.1 255.255.255.252
+ ip nat inside
+ bandwidth 2000
+ clock rate 2000000
+ ip ospf message-digest-key 1 md5 0sPf#Tech26
+ no shutdown
+exit
+!
+interface Serial0/0/1
+ description ### WAN TO BR2-R1 (Aqaba) - DCE end ###
+ ip address 172.16.255.5 255.255.255.252
+ ip nat inside
+ bandwidth 2000
+ clock rate 2000000
+ ip ospf message-digest-key 1 md5 0sPf#Tech26
+ no shutdown
+exit
+!
+interface GigabitEthernet0/2
+ description ### SPARE - reserved for a second ISP or 3rd branch ###
+ shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  4. ROUTING - OSPFv2, ABR for areas 1 and 2
+! ---------------------------------------------------------------------
+ip route 0.0.0.0 0.0.0.0 203.0.113.1
+!
+router ospf 10
+ router-id 1.1.1.1
+ auto-cost reference-bandwidth 10000
+ passive-interface GigabitEthernet0/0
+ !
+ network 172.16.255.241 0.0.0.0 area 0
+ network 172.16.255.12 0.0.0.3 area 0
+ network 172.16.255.0  0.0.0.3 area 1
+ network 172.16.255.4  0.0.0.3 area 2
+ !
+ ! --- summarise each branch into a single /22 towards the backbone ---
+ area 1 range 172.16.16.0 255.255.252.0
+ area 2 range 172.16.20.0 255.255.252.0
+ !
+ ! --- MD5 authentication in every area ---
+ area 0 authentication message-digest
+ area 1 authentication message-digest
+ area 2 authentication message-digest
+ !
+ ! --- inject the default route learned from the ISP ---
+ default-information originate
+exit
+!
+! ---------------------------------------------------------------------
+!  5. NAT / PAT
+!     Narrow source ACL: only real site blocks are translated, so the
+!     172.16.255.0/24 infrastructure block can never source Internet
+!     traffic.
+! ---------------------------------------------------------------------
+ip access-list standard NAT-ALLOWED
+ remark --- HQ 172.16.0.0/20 ---
+ permit 172.16.0.0 0.0.15.255
+ remark --- BR1 172.16.16.0/22 ---
+ permit 172.16.16.0 0.0.3.255
+ remark --- BR2 172.16.20.0/22 ---
+ permit 172.16.20.0 0.0.3.255
+exit
+!
+ip nat inside source list NAT-ALLOWED interface GigabitEthernet0/0 overload
+!
+! --- published web/app server: 172.16.1.35 <-> 203.0.113.3 ---
+ip nat inside source static 172.16.1.35 203.0.113.3
+!
+! ---------------------------------------------------------------------
+!  6. INTERNET EDGE ACL  (inbound on Gi0/0)
+! ---------------------------------------------------------------------
+ip access-list extended ISP-IN
+ remark === anti-spoofing: these sources must never arrive from outside ===
+ deny   ip 172.16.0.0 0.0.255.255 any
+ deny   ip 10.0.0.0 0.255.255.255 any
+ deny   ip 192.168.0.0 0.0.255.255 any
+ deny   ip 127.0.0.0 0.255.255.255 any
+ remark === published services on the static-NAT host only ===
+ permit tcp any host 203.0.113.3 eq 80
+ permit tcp any host 203.0.113.3 eq 443
+ remark === return traffic for internally initiated sessions ===
+ permit tcp any any established
+ permit udp any eq 53 any
+ permit icmp any any echo-reply
+ permit icmp any any time-exceeded
+ permit icmp any any unreachable
+ remark === log everything else that is dropped ===
+ deny   ip any any log
+exit
+!
+! ---------------------------------------------------------------------
+!  7. DHCP - central pools for the HQ VLANs
+!     HQ-CORE relays client broadcasts here via ip helper-address.
+!     Exclusions are configured BEFORE the pools.
+! ---------------------------------------------------------------------
+ip dhcp excluded-address 172.16.0.1 172.16.0.20
+ip dhcp excluded-address 172.16.0.129 172.16.0.140
+ip dhcp excluded-address 172.16.0.193 172.16.0.200
+ip dhcp excluded-address 172.16.1.1 172.16.1.10
+ip dhcp excluded-address 172.16.2.1 172.16.2.10
+!
+ip dhcp pool HQ-ENG-V30
+ network 172.16.0.0 255.255.255.128
+ default-router 172.16.0.1
+ dns-server 172.16.1.34
+ domain-name technova.local
+ lease 7 0 0
+exit
+!
+ip dhcp pool HQ-SALES-V20
+ network 172.16.0.128 255.255.255.192
+ default-router 172.16.0.129
+ dns-server 172.16.1.34
+ domain-name technova.local
+ lease 7 0 0
+exit
+!
+ip dhcp pool HQ-GUEST-V40
+ network 172.16.0.192 255.255.255.192
+ default-router 172.16.0.193
+ dns-server 172.16.1.34
+ lease 0 4 0
+exit
+!
+ip dhcp pool HQ-ADMIN-V10
+ network 172.16.1.0 255.255.255.224
+ default-router 172.16.1.1
+ dns-server 172.16.1.34
+ domain-name technova.local
+ lease 7 0 0
+exit
+!
+ip dhcp pool HQ-VOICE-V60
+ network 172.16.2.0 255.255.255.192
+ default-router 172.16.2.1
+ dns-server 172.16.1.34
+ option 150 ip 172.16.1.36
+ lease 7 0 0
+exit
+!
+! ---------------------------------------------------------------------
+!  8. TIME AND LOGGING
+! ---------------------------------------------------------------------
+ntp master 3
+!
+logging buffered 16384
+logging host 172.16.1.36
+logging source-interface Loopback0
+logging trap informational
+!
+! ---------------------------------------------------------------------
+!  9. SAVE
+! ---------------------------------------------------------------------
+end
+write memory
+!
+! =====================================================================
+!  VERIFICATION ON THIS DEVICE
+!    show ip interface brief
+!    show ip ospf neighbor          -> expect 3 neighbours: 2.2.2.2, 3.3.3.3, 4.4.4.4
+!    show ip ospf interface brief   -> confirm areas 0 / 1 / 2
+!    show ip route                  -> expect O, O IA and the static default
+!    show ip nat translations
+!    show ip nat statistics
+!    show ip dhcp binding
+!    show access-lists
+!    show ip ssh
+! =====================================================================

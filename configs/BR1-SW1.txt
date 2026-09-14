@@ -1,0 +1,185 @@
+! =====================================================================
+!  DEVICE : BR1-SW1           MODEL : Cisco 2960-24TT
+!  SITE   : Branch 1 - Irbid
+!  ROLE   : Branch access layer
+!  UPLINK : Fa0/1 -> BR1-R1 Gi0/0 (802.1Q trunk, router-on-a-stick)
+! =====================================================================
+enable
+configure terminal
+!
+! ---------------------------------------------------------------------
+!  1. IDENTITY AND BASELINE
+! ---------------------------------------------------------------------
+hostname BR1-SW1
+no ip domain-lookup
+ip domain-name technova.local
+!
+enable secret NetW0rks#2026
+service password-encryption
+username netadmin privilege 15 secret Adm1n#Tech2026
+!
+service timestamps log datetime msec localtime
+clock timezone AST 3
+login block-for 120 attempts 4 within 60
+!
+banner motd #
+ *** TechNova Solutions - BR1 ACCESS SWITCH - authorised use only ***
+#
+!
+! ---------------------------------------------------------------------
+!  2. MANAGEMENT ACCESS
+! ---------------------------------------------------------------------
+crypto key generate rsa general-keys modulus 1024
+ip ssh version 2
+!
+ip access-list standard MGMT-ACCESS
+ permit 172.16.1.48 0.0.0.15
+ deny   any log
+exit
+!
+line console 0
+ login local
+ exec-timeout 15 0
+ logging synchronous
+exit
+!
+line vty 0 15
+ access-class MGMT-ACCESS in
+ transport input ssh
+ login local
+ exec-timeout 10 0
+ logging synchronous
+exit
+!
+! ---------------------------------------------------------------------
+!  3. VLANS
+! ---------------------------------------------------------------------
+vlan 110
+ name BR1-STAFF
+exit
+vlan 140
+ name BR1-GUEST
+exit
+vlan 199
+ name BR1-MGMT
+exit
+vlan 999
+ name PARKING-NATIVE
+exit
+!
+spanning-tree mode rapid-pvst
+spanning-tree vlan 110,140,199 root primary
+!
+! ---------------------------------------------------------------------
+!  4. UPLINK TRUNK TO THE ROUTER
+!     A single link, so no EtherChannel here. Native VLAN 999 is unused
+!     on the router side too, so untagged frames go nowhere.
+! ---------------------------------------------------------------------
+interface FastEthernet0/1
+ description ### TRUNK TO BR1-R1 Gi0/0 ###
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 110,140,199
+ switchport nonegotiate
+ ip dhcp snooping trust
+ no shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  5. STAFF ACCESS PORTS (VLAN 110)
+! ---------------------------------------------------------------------
+interface range FastEthernet0/5-16
+ description ### BR1 STAFF WORKSTATIONS ###
+ switchport mode access
+ switchport access vlan 110
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  6. GUEST WIRELESS PORTS (VLAN 140)
+! ---------------------------------------------------------------------
+interface range FastEthernet0/20-21
+ description ### BR1 GUEST WIRELESS AP ###
+ switchport mode access
+ switchport access vlan 140
+ switchport protected
+ switchport port-security
+ switchport port-security maximum 8
+ switchport port-security violation restrict
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  7. UNUSED PORTS
+! ---------------------------------------------------------------------
+interface range FastEthernet0/2-4
+ description ### UNUSED ###
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+exit
+!
+interface range FastEthernet0/17-19
+ description ### UNUSED ###
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+exit
+!
+interface range FastEthernet0/22-24
+ description ### UNUSED ###
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+exit
+!
+interface range GigabitEthernet0/1-2
+ description ### UNUSED UPLINK PORTS ###
+ shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  8. DHCP SNOOPING
+! ---------------------------------------------------------------------
+ip dhcp snooping
+ip dhcp snooping vlan 110,140,199
+no ip dhcp snooping information option
+!
+! ---------------------------------------------------------------------
+!  9. MANAGEMENT INTERFACE
+! ---------------------------------------------------------------------
+interface Vlan199
+ description ### SWITCH MANAGEMENT ADDRESS ###
+ ip address 172.16.16.50 255.255.255.248
+ no shutdown
+exit
+!
+ip default-gateway 172.16.16.49
+!
+! ---------------------------------------------------------------------
+! 10. TIME AND LOGGING
+! ---------------------------------------------------------------------
+ntp server 172.16.255.241
+logging buffered 16384
+logging host 172.16.1.36
+logging trap informational
+!
+end
+write memory
+!
+! =====================================================================
+!  VERIFICATION ON THIS DEVICE
+!    show vlan brief
+!    show interfaces trunk            -> Fa0/1, native 999, allowed 110,140,199
+!    show port-security
+!    show spanning-tree vlan 110
+!    show ip dhcp snooping
+! =====================================================================

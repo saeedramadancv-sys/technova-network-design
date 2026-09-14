@@ -1,0 +1,187 @@
+! =====================================================================
+!  DEVICE : BR1-R1            MODEL : Cisco 2911 + HWIC-2T (slot 0)
+!  SITE   : Branch 1 - Irbid
+!  ROLES  : Inter-VLAN routing by 802.1Q subinterfaces (router-on-a-stick)
+!           LOCAL DHCP server - so the branch keeps working if the WAN
+!           circuit fails (requirement BR-5)
+!           OSPF area 1 internal router
+!  WAN    : Se0/0/0 -> HQ-R1 Se0/0/0 (DTE end, clocking comes from HQ)
+! =====================================================================
+enable
+configure terminal
+!
+! ---------------------------------------------------------------------
+!  1. IDENTITY AND BASELINE
+! ---------------------------------------------------------------------
+hostname BR1-R1
+no ip domain-lookup
+ip domain-name technova.local
+!
+enable secret NetW0rks#2026
+service password-encryption
+username netadmin privilege 15 secret Adm1n#Tech2026
+!
+service timestamps log datetime msec localtime
+clock timezone AST 3
+login block-for 120 attempts 4 within 60
+!
+banner motd #
+ *** TechNova Solutions - BRANCH 1 (Irbid) ROUTER - authorised use only ***
+#
+!
+! ---------------------------------------------------------------------
+!  2. MANAGEMENT ACCESS
+! ---------------------------------------------------------------------
+crypto key generate rsa general-keys modulus 1024
+ip ssh version 2
+!
+ip access-list standard MGMT-ACCESS
+ remark --- managed from the HQ management VLAN only ---
+ permit 172.16.1.48 0.0.0.15
+ deny   any log
+exit
+!
+line console 0
+ login local
+ exec-timeout 15 0
+ logging synchronous
+exit
+!
+line vty 0 4
+ access-class MGMT-ACCESS in
+ transport input ssh
+ login local
+ exec-timeout 10 0
+ logging synchronous
+exit
+!
+! ---------------------------------------------------------------------
+!  3. INTERFACES
+! ---------------------------------------------------------------------
+interface Loopback0
+ description ### OSPF ROUTER-ID SOURCE / STABLE MGMT ADDRESS ###
+ ip address 172.16.255.242 255.255.255.255
+exit
+!
+interface Serial0/0/0
+ description ### WAN TO HQ-R1 Se0/0/0 - DTE end ###
+ ip address 172.16.255.2 255.255.255.252
+ bandwidth 2000
+ ip ospf message-digest-key 1 md5 0sPf#Tech26
+ no shutdown
+exit
+!
+! --- physical trunk toward BR1-SW1: no address, subinterfaces only ---
+interface GigabitEthernet0/0
+ description ### 802.1Q TRUNK TO BR1-SW1 Fa0/1 ###
+ no ip address
+ no shutdown
+exit
+!
+interface GigabitEthernet0/0.110
+ description ### BR1 STAFF GATEWAY - VLAN 110 ###
+ encapsulation dot1Q 110
+ ip address 172.16.16.1 255.255.255.224
+exit
+!
+interface GigabitEthernet0/0.140
+ description ### BR1 GUEST GATEWAY - VLAN 140 (isolated by ACL) ###
+ encapsulation dot1Q 140
+ ip address 172.16.16.33 255.255.255.240
+ ip access-group BR1-GUEST-IN in
+exit
+!
+interface GigabitEthernet0/0.199
+ description ### BR1 MANAGEMENT GATEWAY - VLAN 199 ###
+ encapsulation dot1Q 199
+ ip address 172.16.16.49 255.255.255.248
+exit
+!
+interface GigabitEthernet0/1
+ description ### SPARE ###
+ shutdown
+exit
+!
+! ---------------------------------------------------------------------
+!  4. GUEST ISOLATION ACL (inbound on the guest subinterface)
+! ---------------------------------------------------------------------
+ip access-list extended BR1-GUEST-IN
+ remark --- local DHCP must work ---
+ permit udp any any eq 67
+ permit udp any any eq 68
+ remark --- name resolution against the HQ DNS server only ---
+ permit udp any host 172.16.1.34 eq 53
+ permit tcp any host 172.16.1.34 eq 53
+ remark --- no other internal destination, at any site ---
+ deny   ip any 172.16.0.0 0.0.255.255
+ remark --- everything else is Internet-bound (NAT happens at HQ-R1) ---
+ permit ip any any
+exit
+!
+! ---------------------------------------------------------------------
+!  5. ROUTING - OSPF area 1
+!     Only the serial link needs an adjacency; user subinterfaces are
+!     passive.
+! ---------------------------------------------------------------------
+router ospf 10
+ router-id 3.3.3.3
+ auto-cost reference-bandwidth 10000
+ passive-interface default
+ no passive-interface Serial0/0/0
+ !
+ network 172.16.255.242 0.0.0.0 area 1
+ network 172.16.255.0  0.0.0.3  area 1
+ network 172.16.16.0   0.0.0.31 area 1
+ network 172.16.16.32  0.0.0.15 area 1
+ network 172.16.16.48  0.0.0.7  area 1
+ !
+ area 1 authentication message-digest
+exit
+!
+! ---------------------------------------------------------------------
+!  6. LOCAL DHCP
+!     Deliberately local, not relayed to HQ: if the serial circuit
+!     drops, branch hosts still get addresses and keep working on the
+!     LAN. Exclusions come before the pools.
+! ---------------------------------------------------------------------
+ip dhcp excluded-address 172.16.16.1 172.16.16.10
+ip dhcp excluded-address 172.16.16.33 172.16.16.36
+!
+ip dhcp pool BR1-STAFF-V110
+ network 172.16.16.0 255.255.255.224
+ default-router 172.16.16.1
+ dns-server 172.16.1.34
+ domain-name technova.local
+ lease 7 0 0
+exit
+!
+ip dhcp pool BR1-GUEST-V140
+ network 172.16.16.32 255.255.255.240
+ default-router 172.16.16.33
+ dns-server 172.16.1.34
+ lease 0 4 0
+exit
+!
+! ---------------------------------------------------------------------
+!  7. TIME AND LOGGING
+! ---------------------------------------------------------------------
+ntp server 172.16.255.241
+logging buffered 16384
+logging host 172.16.1.36
+logging source-interface Loopback0
+logging trap informational
+!
+end
+write memory
+!
+! =====================================================================
+!  VERIFICATION ON THIS DEVICE
+!    show ip interface brief
+!    show ip ospf neighbor            -> expect 1.1.1.1 over Se0/0/0
+!    show ip route                    -> expect O*E2 0.0.0.0/0 and
+!                                        O IA routes for HQ and BR2
+!    show ip protocols                -> area 1, reference bw 10000
+!    show ip dhcp binding
+!    show ip access-lists BR1-GUEST-IN
+!    show controllers Serial0/0/0     -> should report DTE
+! =====================================================================

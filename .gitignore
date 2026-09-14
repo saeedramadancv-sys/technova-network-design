@@ -1,0 +1,15 @@
+# Word's lock file while the report is open. It is a live handle, not content.
+~$*.docx
+~$*.doc
+
+# Packet Tracer working files and autosaves. The repository carries the
+# paste-ready IOS configs instead: a .pkt is a binary that only opens in one
+# version of one tool, and nobody can review a diff of it.
+*.pkt
+*.pka
+*.pkt.bak
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store

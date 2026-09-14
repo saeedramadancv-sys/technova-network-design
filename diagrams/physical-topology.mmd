@@ -1,0 +1,46 @@
+%% TechNova Solutions - physical topology: real device ports and cable types
+graph LR
+    EXT["External-Server<br/>198.51.100.10"]
+    ISP["ISP-R (2911)"]
+    R1["HQ-R1 (2911 + HWIC-2T)"]
+    CORE["HQ-CORE (3560-24PS)"]
+    A1["HQ-ACC1 (2960-24TT)"]
+    A2["HQ-ACC2 (2960-24TT)"]
+    B1R["BR1-R1 (2911 + HWIC-2T)"]
+    B1S["BR1-SW1 (2960-24TT)"]
+    B2R["BR2-R1 (2911 + HWIC-2T)"]
+    B2S["BR2-SW1 (2960-24TT)"]
+    PCE["PC-ENG1"]
+    PCS["PC-SALES1"]
+    PH["IP-Phone-1 + PC-ADMIN1"]
+    APH["AP-GUEST-HQ"]
+    SD["SRV-DNS .34"]
+    SW["SRV-WEB .35"]
+    SL["SRV-LOG .36"]
+    IT["PC-ITADMIN .52"]
+    PB1["PC-BR1-1"]
+    AB1["AP-GUEST-BR1"]
+    PB2["PC-BR2-1"]
+    AB2["AP-GUEST-BR2"]
+
+    EXT ---|"Gi0/1 - Fa0"| ISP
+    ISP ---|"Gi0/0 - Gi0/0 straight"| R1
+    R1 ---|"Gi0/1 - Gi0/1 straight"| CORE
+    R1 -.-|"Se0/0/0 DCE - Se0/0/0"| B1R
+    R1 -.-|"Se0/0/1 DCE - Se0/0/0"| B2R
+    CORE ===|"Fa0/1-2 - Fa0/1-2 crossover"| A1
+    CORE ===|"Fa0/3-4 - Fa0/1-2 crossover"| A2
+    A1 ---|"Fa0/5"| PCE
+    A1 ---|"Fa0/10"| PCS
+    A1 ---|"Fa0/15"| PH
+    A2 ---|"Fa0/5"| APH
+    A2 ---|"Fa0/20"| SD
+    A2 ---|"Fa0/21"| SW
+    A2 ---|"Fa0/22"| SL
+    A2 ---|"Fa0/24"| IT
+    B1R ---|"Gi0/0 - Fa0/1"| B1S
+    B1S ---|"Fa0/5"| PB1
+    B1S ---|"Fa0/20"| AB1
+    B2R ---|"Gi0/0 - Fa0/1"| B2S
+    B2S ---|"Fa0/5"| PB2
+    B2S ---|"Fa0/20"| AB2

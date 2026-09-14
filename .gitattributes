@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+*.docx binary
+*.pdf  binary
+*.pkt  binary
+
+# Router configs are pasted into a terminal; keep them as written.
+configs/*.txt text eol=crlf
