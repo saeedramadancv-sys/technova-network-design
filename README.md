@@ -1,4 +1,4 @@
-# TechNova Solutions — Enterprise Network Design Project
+# TechNova: a network design for a three-site company
 
 - **Author:** Saeed Ramadan
 - **Deliverable:** Multi-site enterprise network design, with a Cisco Packet Tracer build guide and test plan
@@ -10,21 +10,19 @@
 
 ## 1. What this project is
 
-A complete design-and-build package for the network of a fictional company,
-**TechNova Solutions**, which operates a headquarters in Amman and two branch
-offices (Irbid and Aqaba). The project covers the full engineering cycle:
+I designed the network for a made-up company, **TechNova Solutions**, with a head office in
+Amman and two branches in Irbid and Aqaba. I wanted to take it through every step a real
+design goes through: requirements, logical design, addressing, switching, routing, services,
+security, a build guide, a test plan and an evaluation.
 
-requirements → logical design → addressing → switching → routing → services →
-security → build guide → test plan → evaluation.
-
-Every configuration file in `configs/` is a complete, paste-ready Cisco IOS
-configuration. Every address in `docs/03-ip-addressing-plan.md` is derived by
-VLSM from a single block and is verified against the configurations.
+Each file in `configs/` is a complete Cisco IOS configuration you can paste into a device.
+Every address in `docs/03-ip-addressing-plan.md` comes from one block using VLSM, and I
+cross-checked them against the configurations.
 
 ## 2. Repository layout
 
 ```
-Networking-Project/
+technova-network-design/
 ├── README.md                         ← you are here
 ├── TechNova-Network-Design-Report.docx  ← the full design report (Word)
 ├── TechNova-Network-Design-Report.pdf   ← same report, fixed formatting
@@ -155,7 +153,7 @@ graph TB
 
 ### OSPF areas and summarisation
 
-Why the backbone carries two branch routes instead of eight.
+How each branch's routes are summarised into one route at the area border.
 
 ```mermaid
 %% OSPFv2 area design, router-IDs and summarisation at the ABR
@@ -254,26 +252,24 @@ graph LR
 
 ## 5. How to reproduce the build
 
-1. Read `docs/09-build-guide-packet-tracer.md` — it gives the exact device
-   models, modules and cable types, in the order they must be placed.
+1. Read `docs/09-build-guide-packet-tracer.md`. It lists the exact device
+   models, modules and cable types, in the order to place them.
 2. Place and cable the devices.
 3. Paste each file from `configs/` into the matching device
    (`enable` → `configure terminal` → paste → `end` → `write memory`).
-4. Work through `docs/08-test-plan-and-verification.md`. All 60 tests should
-   pass; each one lists the command and the expected result.
+4. Work through `docs/08-test-plan-and-verification.md`. Each of the 60 tests
+   lists the command to run and the result to expect. (I haven't run them yet;
+   see the status line at the top.)
 
-## 6. Honest scope limits
+## 6. What this design doesn't cover
 
-These are stated up front rather than hidden, and are discussed in
-§8 of the final report:
+These limits are discussed in §9 of the report:
 
 - The ISP and the "Internet" are simulated by one router and one server. No
   BGP, no real upstream.
-- The edge filter is a **stateless** extended ACL. A production edge needs a
-  stateful firewall (Cisco ZBF/ASA); this is named as future work, not claimed
-  as done.
-- Each branch has a single WAN circuit. Branch WAN redundancy is designed on
-  paper (§8.2 of the report) but not built, to keep the topology inside the
-  scope of the project.
+- The edge filter is a **stateless** extended ACL. A real edge needs a stateful
+  firewall (Cisco ZBF or ASA), which I list as future work.
+- Each branch has a single WAN link. A second link per branch is only listed as
+  future work (§9.2 of the report).
 - Wireless is represented by access points on the guest VLAN; WLC-based
   wireless design is out of scope.
