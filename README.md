@@ -1,8 +1,10 @@
 # TechNova Solutions — Enterprise Network Design Project
 
-**Course:** Computer Networks
-**Deliverable:** Multi-site enterprise network design, implementation (Cisco Packet Tracer) and evaluation
-**Design space:** `172.16.0.0/16` (private) + `203.0.113.0/29` (ISP-assigned public)
+- **Course:** Computer Networks
+- **Deliverable:** Multi-site enterprise network design, with a Cisco Packet Tracer build guide and test plan
+- **Design space:** `172.16.0.0/16` (private) + `203.0.113.0/29` (ISP-assigned public)
+- **Status:** design complete (addressing, configurations, test plan). It has not yet been
+  built and run in Packet Tracer, so the *Actual* column of the test plan is still empty.
 
 ---
 
@@ -198,7 +200,7 @@ graph TB
 
 ### Physical topology
 
-Ports and cable types, as built in Packet Tracer.
+Ports and cable types, as planned for the Packet Tracer build.
 
 ```mermaid
 %% TechNova Solutions - physical topology: real device ports and cable types
