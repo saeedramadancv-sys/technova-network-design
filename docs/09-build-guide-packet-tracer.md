@@ -61,8 +61,7 @@ line stays down with `Serial0/0/0 is down, line protocol is down` and
 
 **On cross-over vs straight-through:** modern Packet Tracer devices auto-MDIX, so
 straight-through usually works switch-to-switch as well. Cross-over is specified
-for the switch-to-switch links because it is the textbook-correct choice and the
-examiner may ask.
+for the switch-to-switch links because it is the textbook-correct choice.
 
 ## 9.3 Build order
 
@@ -113,7 +112,7 @@ On **SRV-DNS** → *Services* → **DNS** → On, and add:
 | `syslog.technova.local` | A Record | 172.16.1.36 |
 
 On **SRV-WEB** → *Services* → **HTTP** → On (edit `index.html` so the page is
-identifiably yours — it makes the NAT screenshot convincing).
+easy to recognise in the NAT test).
 
 On **SRV-LOG** → *Services* → **SYSLOG** → On, and **NTP** → On.
 
@@ -182,7 +181,7 @@ around that line if your terminal drops characters while the key is generated.
 
 - `write memory` on every device (already the last line of each config file).
 - **File → Save As** in Packet Tracer, named
-  `TechNova-Network-<yourname>.pkt`, saved next to this repository.
-- Keep the `.pkt` and the `configs/` folder together: if a marker opens the
+  `TechNova-Network.pkt`, saved next to this repository.
+- Keep the `.pkt` and the `configs/` folder together: if anyone opens the
   `.pkt` and something has drifted, the text files are the authoritative
   reference.

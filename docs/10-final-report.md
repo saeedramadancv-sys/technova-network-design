@@ -1,18 +1,15 @@
-# Design and Implementation of a Multi-Site Enterprise Network
+# Design of a Multi-Site Enterprise Network
 
 ### A hierarchical, VLSM-addressed, OSPF-routed network for TechNova Solutions
 
-**Course:** Computer Networks
-**Student:** ______________________
-**Student ID:** ______________________
-**Instructor:** ______________________
-**Date:** ______________________
+**Author:** Saeed Ramadan
+**Date:** August 2026
 
 ---
 
 ## Abstract
 
-This project designs, implements and evaluates a complete enterprise network for
+This project designs and documents a complete enterprise network for
 a three-site company of 320 users. From a single `172.16.0.0/16` address block,
 variable-length subnet masking produces thirteen user subnetworks and seven
 infrastructure prefixes (three point-to-point links and four loopbacks),
@@ -25,8 +22,8 @@ boundary router; area ranges reduce the branch routes carried into the backbone
 from eight to two. Internet access for all 320 users is provided through port
 address translation onto a single public address, with one static translation
 publishing the web server. Twelve named security controls are applied, each
-mapped to the specific threat it answers. The design was implemented in Cisco
-Packet Tracer and validated against a 60-case test plan covering Layer 2, DHCP,
+mapped to the specific threat it answers. The design comes with a step-by-step
+Cisco Packet Tracer build guide and a 60-case test plan covering Layer 2, DHCP,
 routing, end-to-end reachability, translation and security enforcement. The
 report closes with an explicit statement of what the design does *not* protect
 against, and a prioritised list of the six changes a production deployment would
@@ -46,7 +43,7 @@ NAT/PAT, access control lists, DHCP relay, network hardening.
 5. Routing design
 6. Services design
 7. Security design
-8. Implementation and results
+8. Build plan and testing
 9. Evaluation, limitations and future work
 10. Conclusion
 11. References
@@ -97,7 +94,7 @@ implementation and testing. The alternative — configuring devices and
 documenting afterwards — produces a network whose structure is an accident of the
 order in which features were switched on.
 
-Implementation and testing were performed in Cisco Packet Tracer 8.x, which
+The build guide and test plan target Cisco Packet Tracer 8.x, which
 models IOS configuration and control-plane behaviour faithfully enough for
 design validation, with the limitations noted in §9.1.
 
@@ -384,19 +381,19 @@ protects every current and future site.
 
 ---
 
-## 8. Implementation and results
+## 8. Build plan and testing
 
-### 8.1 Implementation
+### 8.1 Build plan
 
-Nine devices were configured: four routers (one simulating the ISP), one
+Nine devices are configured: four routers (one simulating the ISP), one
 multilayer switch, four access switches, plus three servers and end hosts. The
 complete configurations are in `configs/`, and the build order, cabling table and
 troubleshooting matrix are in `docs/09-build-guide-packet-tracer.md`.
 
 ### 8.2 Test results
 
-The design was validated against 60 test cases in seven groups. Record the
-outcome of each group here after running the build:
+The design has not yet been built in Packet Tracer, so these results are still
+to be recorded. The 60 test cases fall into seven groups:
 
 | Group | Focus | Tests | Passed | Notes |
 |---|---|---|---|---|
@@ -409,9 +406,9 @@ outcome of each group here after running the build:
 | G | DNS, HTTP, NTP, syslog, voice DHCP options | 6 | | |
 | | **Total** | **60** | | |
 
-### 8.3 Key results to present
+### 8.3 Expected key results
 
-Four results carry the argument of this project:
+Once the design is built, four results are expected to carry its argument:
 
 1. **Route summarisation works and is measurable** (C5). `show ip route ospf` on
    `HQ-CORE` shows exactly two inter-area branch routes where eight would
@@ -488,7 +485,8 @@ recover.
 
 ## 10. Conclusion
 
-A complete three-site enterprise network was designed, implemented and verified.
+A complete three-site enterprise network was designed and documented, ready to be
+built and verified in Packet Tracer.
 Thirteen user subnets and seven infrastructure prefixes were derived by VLSM from
 a single `/16`, structured so that each site is a single summarisable prefix.
 Layer-2 segmentation uses pruned 802.1Q trunks, LACP aggregation and Rapid-PVST+

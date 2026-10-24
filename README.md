@@ -1,6 +1,6 @@
 # TechNova Solutions — Enterprise Network Design Project
 
-- **Course:** Computer Networks
+- **Author:** Saeed Ramadan
 - **Deliverable:** Multi-site enterprise network design, with a Cisco Packet Tracer build guide and test plan
 - **Design space:** `172.16.0.0/16` (private) + `203.0.113.0/29` (ISP-assigned public)
 - **Status:** design complete (addressing, configurations, test plan). It has not yet been
@@ -15,7 +15,7 @@ A complete design-and-build package for the network of a fictional company,
 offices (Irbid and Aqaba). The project covers the full engineering cycle:
 
 requirements → logical design → addressing → switching → routing → services →
-security → implementation → testing → evaluation.
+security → build guide → test plan → evaluation.
 
 Every configuration file in `configs/` is a complete, paste-ready Cisco IOS
 configuration. Every address in `docs/03-ip-addressing-plan.md` is derived by
@@ -26,8 +26,7 @@ VLSM from a single block and is verified against the configurations.
 ```
 Networking-Project/
 ├── README.md                         ← you are here
-├── CHECKLIST.md                      ← submission / grading checklist
-├── TechNova-Network-Design-Report.docx  ← THE SUBMITTABLE REPORT (Word)
+├── TechNova-Network-Design-Report.docx  ← the full design report (Word)
 ├── TechNova-Network-Design-Report.pdf   ← same report, fixed formatting
 ├── docs/
 │   ├── 01-requirements-and-scope.md  ← business + technical requirements
@@ -39,7 +38,7 @@ Networking-Project/
 │   ├── 07-security-hardening.md      ← ACLs, port security, SSH, DHCP snooping
 │   ├── 08-test-plan-and-verification.md ← 60 test cases + expected output
 │   ├── 09-build-guide-packet-tracer.md  ← step-by-step build order
-│   └── 10-final-report.md            ← the academic report (submit this)
+│   └── 10-final-report.md            ← the full design report (Markdown)
 ├── configs/                          ← 9 paste-ready IOS configurations
 │   ├── ISP-R.txt      HQ-R1.txt      HQ-CORE.txt
 │   ├── HQ-ACC1.txt    HQ-ACC2.txt
@@ -49,8 +48,6 @@ Networking-Project/
 │   ├── logical-topology.mmd
 │   ├── physical-topology.mmd
 │   └── ospf-areas.mmd
-├── presentation/
-│   └── slides.md                     ← 14-slide defence deck
 └── tools/
     └── embed-diagrams.py             ← re-renders the README diagrams from diagrams/*.mmd
 ```
@@ -277,6 +274,6 @@ These are stated up front rather than hidden, and are discussed in
   as done.
 - Each branch has a single WAN circuit. Branch WAN redundancy is designed on
   paper (§8.2 of the report) but not built, to keep the topology inside the
-  scope of one course project.
+  scope of the project.
 - Wireless is represented by access points on the guest VLAN; WLC-based
   wireless design is out of scope.

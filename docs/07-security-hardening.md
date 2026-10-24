@@ -223,7 +223,7 @@ pruned off every trunk.
 | OSPF MD5 key | `0sPf#Tech26` | Same on both ends of each link |
 | `service password-encryption` | enabled | Type-7 obfuscation for anything that must be stored reversibly (e.g. line passwords) — **obfuscation, not encryption**; trivially reversible and no substitute for `secret` |
 
-The credentials above are lab values published in a coursework repository. In a
+The credentials above are lab values published in a public portfolio repository. In a
 real deployment they would be unique per device, issued from a password manager,
 and ideally replaced entirely by TACACS+/RADIUS authentication against a central
 identity store — which is listed as future work.
