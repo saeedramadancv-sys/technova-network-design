@@ -17,8 +17,8 @@ graph TB
     B1 ---|"serial 2 Mbps - cost 5000"| R1
     B2 ---|"serial 2 Mbps - cost 5000"| R1
 
-    SUM1["area 1 range<br/>172.16.16.0 255.255.252.0<br/>4 routes -> 1"]
-    SUM2["area 2 range<br/>172.16.20.0 255.255.252.0<br/>4 routes -> 1"]
+    SUM1["area 1 range<br/>172.16.16.0 255.255.252.0<br/>3 LAN routes -> 1"]
+    SUM2["area 2 range<br/>172.16.20.0 255.255.252.0<br/>3 LAN routes -> 1"]
     EXT["ip route 0.0.0.0 0.0.0.0 203.0.113.1<br/>redistributed as O*E2"]
 
     R1 -.-> SUM1

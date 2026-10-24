@@ -62,7 +62,7 @@ extra configuration.
 | C2 | HQ-CORE | `show ip ospf neighbor` | 1 neighbour, 1.1.1.1, `FULL` | |
 | C3 | HQ-R1 | `show ip ospf interface brief` | Gi0/1 in area 0, Se0/0/0 area 1, Se0/0/1 area 2, Lo0 area 0 | |
 | C4 | any router | `show ip protocols` | `Reference bandwidth unit is 10000 mbps` — identical on all four routers | |
-| C5 | HQ-CORE | `show ip route ospf` | `O IA 172.16.16.0/22` and `O IA 172.16.20.0/22` present; **no** more specific branch prefixes (/27, /28, /29) | |
+| C5 | HQ-CORE | `show ip route ospf` | `O IA 172.16.16.0/22` and `O IA 172.16.20.0/22` present; **no** more specific branch LAN prefixes (/27, /28, /29). The serial /30s and branch loopback /32s still appear on their own | |
 | C6 | BR1-R1 | `show ip route` | `O*E2 0.0.0.0/0 [110/1] via 172.16.255.1`; `O IA` routes for HQ VLANs and for BR2 | |
 | C7 | HQ-R1 | `show ip ospf database` | LSA type 1 in each area, type 3 summaries for the /22 ranges, type 5 for the default | |
 | C8 | HQ-R1 | `show ip ospf` | reports `It is an area border router and autonomous system boundary router` | |

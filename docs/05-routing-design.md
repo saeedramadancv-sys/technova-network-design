@@ -4,7 +4,7 @@
 
 | Candidate | Verdict | Reason |
 |---|---|---|
-| Static routing | Rejected | ~16 internal prefixes across 4 routers; every future subnet becomes a manual change on every router, and there is no automatic failover |
+| Static routing | Rejected | ~20 internal prefixes across 4 routers; every future subnet becomes a manual change on every router, and there is no automatic failover |
 | RIPv2 | Rejected | 15-hop limit is irrelevant here, but 30-second periodic updates and counting-to-infinity convergence are poor, and it cannot express areas |
 | EIGRP | Rejected | Technically an excellent fit (fast, simple, supports unequal-cost load balancing), but it is Cisco-proprietary and constraint §1.5 requires an open standard |
 | **OSPFv2** | **Selected** | Open standard (RFC 2328), link-state with fast convergence, hierarchical areas, supports authentication and route summarisation at area borders |
@@ -38,7 +38,7 @@ simultaneously an **ASBR** (Autonomous System Boundary Router), because it
 injects the default route learned from the ISP.
 
 **Why areas at all, at this size?** Honestly, a single area 0 would work fine for
-16 prefixes — and that is worth saying plainly rather than pretending areas are
+20 prefixes — and that is worth saying plainly rather than pretending areas are
 mandatory here. Areas are used because:
 
 1. They make the design scale in the direction the company is actually growing
@@ -59,21 +59,28 @@ router ospf 10
  area 2 range 172.16.20.0 255.255.252.0
 ```
 
-Effect, measured on `HQ-CORE`:
+Expected effect on `HQ-CORE` (each branch router puts five prefixes into its area: three
+LANs, its serial link and its loopback):
 
 | | Without `area range` | With `area range` |
 |---|---|---|
-| Inter-area routes for BR1 | 4 (`/27`, `/28`, `/29`, `/30`) | **1** (`172.16.16.0/22`) |
-| Inter-area routes for BR2 | 4 | **1** |
-| Total branch LSA-3 entries in area 0 | 8 | **2** |
+| Inter-area routes for BR1 | 5 (`/27`, `/28`, `/29`, serial `/30`, loopback `/32`) | **3** (`172.16.16.0/22`, `/30`, `/32`) |
+| Inter-area routes for BR2 | 5 | **3** |
+| Total branch LSA-3 entries in area 0 | 10 | **6** |
 
-A 75 % reduction in the branch routes carried into the backbone, and — more
-importantly — the backbone stops hearing about an individual branch VLAN going
-away. Only the loss of the *entire* /22 is propagated.
+That's a 40 % reduction. The range only covers the branch LANs: the serial `/30`s and
+the branch loopbacks are numbered from the infrastructure block `172.16.255.0/24`, so
+they fall outside each branch's `/22` and are still advertised one by one. The more
+useful effect is stability: the backbone no longer hears about an individual branch
+VLAN going away. Only the loss of the *entire* LAN `/22` is propagated.
+
+Numbering each branch's loopback and WAN link from inside its own `/22` would bring
+the count down to 2, at the cost of mixing infrastructure addresses into the user
+blocks. That's listed as possible future work rather than done here.
 
 Verification: `show ip route ospf` on HQ-CORE should show `172.16.16.0/22 [110/...]`
-and `172.16.20.0/22 [110/...]` as `O IA` routes, and no more specific branch
-prefixes.
+and `172.16.20.0/22 [110/...]` as `O IA` routes and no more specific branch LAN
+prefixes. The serial `/30`s and branch loopbacks still appear on their own.
 
 ## 5.4 Cost and path selection
 

@@ -18,8 +18,8 @@ Layer-2 segmentation uses 802.1Q VLANs with pruned trunks, an LACP EtherChannel
 between the core and each access switch, and Rapid-PVST+ with the multilayer
 switch as root. Layer-3 forwarding uses OSPFv2 in three areas, with the
 headquarters border router acting as area border router and autonomous system
-boundary router; area ranges reduce the branch routes carried into the backbone
-from eight to two. Internet access for all 320 users is provided through port
+boundary router; area ranges collapse each branch's LANs into one route, reducing
+the branch routes carried into the backbone from ten to six. Internet access for all 320 users is provided through port
 address translation onto a single public address, with one static translation
 publishing the web server. Twelve named security controls are applied, each
 mapped to the specific threat it answers. The design comes with a step-by-step
@@ -242,7 +242,7 @@ design actually exploits.
 | 1 | HQ-R1 (ABR), BR1-R1 | BR1 serial link, 3 BR1 subnets, 1 loopback |
 | 2 | HQ-R1 (ABR), BR2-R1 | BR2 serial link, 3 BR2 subnets, 1 loopback |
 
-At 16 internal prefixes, a single area 0 would function perfectly well, and the
+At 20 internal prefixes, a single area 0 would function perfectly well, and the
 report states that rather than overselling the area design. Areas were chosen
 because they scale in the direction the company is growing, because a branch link
 flap then triggers SPF only inside that branch area, and — concretely — because
@@ -253,12 +253,16 @@ area 1 range 172.16.16.0 255.255.252.0
 area 2 range 172.16.20.0 255.255.252.0
 ```
 
-**Measured effect (test C5):**
+**Expected effect (test C5):**
 
 | | Without area ranges | With area ranges |
 |---|---|---|
-| Branch type-3 LSAs in area 0 | 8 | **2** |
-| Reduction | — | **75 %** |
+| Branch type-3 LSAs in area 0 | 10 | **6** |
+| Reduction | — | **40 %** |
+
+Each branch advertises five prefixes: three LANs, its serial `/30` and its loopback
+`/32`. Only the LANs sit inside the branch `/22`; the `/30` and `/32` come from the
+infrastructure block `172.16.255.0/24` and are still advertised individually.
 
 Beyond the count, the qualitative benefit is stability: the backbone no longer
 hears about an individual branch VLAN appearing or disappearing. Only loss of the
@@ -411,8 +415,8 @@ to be recorded. The 60 test cases fall into seven groups:
 Once the design is built, four results are expected to carry its argument:
 
 1. **Route summarisation works and is measurable** (C5). `show ip route ospf` on
-   `HQ-CORE` shows exactly two inter-area branch routes where eight would
-   otherwise appear — a 75 % reduction, achieved with two lines of
+   `HQ-CORE` shows one route per branch LAN block instead of three LAN routes,
+   six branch routes in total instead of ten (a 40 % reduction), achieved with two lines of
    configuration made possible by a decision taken in the *addressing* stage.
    This is the clearest demonstration in the project that design stages are not
    independent.
@@ -491,11 +495,11 @@ Thirteen user subnets and seven infrastructure prefixes were derived by VLSM fro
 a single `/16`, structured so that each site is a single summarisable prefix.
 Layer-2 segmentation uses pruned 802.1Q trunks, LACP aggregation and Rapid-PVST+
 with a deterministic root. OSPFv2 in three areas provides dynamic routing, and
-ABR summarisation reduces branch routes in the backbone by 75 %. PAT delivers
+ABR summarisation reduces branch routes in the backbone by 40 %. PAT delivers
 Internet access for 320 users from one public address, with a single scoped
 static translation publishing the web server. Twelve security controls were
-applied, each traced to a named threat, and each verified by attempting the
-attack it is meant to prevent rather than by reading the configuration back.
+applied, each traced to a named threat, and each has a test that attempts the
+attack it is meant to prevent rather than reading the configuration back.
 
 All six project objectives were met. The design's real limitations — a stateless
 edge filter, a single-homed border router, unencrypted WAN links, MAC-based
